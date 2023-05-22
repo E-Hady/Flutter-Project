@@ -1,0 +1,334 @@
+/*import 'dart:async';
+
+import 'package:flutter/material.dart';
+import 'package:record/record.dart';
+
+void main() {
+  runApp(const MaterialApp(home: MicPage()));
+}
+
+class MicPage extends StatefulWidget {
+  const MicPage({super.key});
+
+  @override
+  State<MicPage> createState() => _MicPageState();
+}
+
+class _MicPageState extends State<MicPage> {
+  Record myRecording = Record();
+  Timer? timer;
+
+  double volume = 0.0;
+  double minVolume = -45.0;
+
+  startTimer() async {
+    timer ??= Timer.periodic(
+        const Duration(milliseconds: 50), (timer) => updateVolume());
+  }
+
+  updateVolume() async {
+    Amplitude ampl = await myRecording.getAmplitude();
+    if (ampl.current > minVolume) {
+      setState(() {
+        volume = (ampl.current - minVolume) / minVolume;
+      });
+    }
+  }
+
+  int volume0to(int maxVolumeToDisplay) {
+    return (volume * maxVolumeToDisplay).round().abs();
+  }
+
+  Future<bool> startRecording() async {
+    if (await myRecording.hasPermission()) {
+      if (!await myRecording.isRecording()) {
+        await myRecording.start();
+      }
+      startTimer();
+      return true;
+    } else {
+      return false;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final Future<bool> recordFutureBuilder =
+    Future<bool>.delayed(const Duration(seconds: 3), (() async {
+      return startRecording();
+    }));
+
+    return FutureBuilder(
+        future: recordFutureBuilder,
+        builder: (context, AsyncSnapshot<bool> snapshot) {
+          return Scaffold(
+            body: Center(
+                child: snapshot.hasData
+                    ? Text("VOLUME NOISE\n${volume0to(100)}",
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                        fontSize: 42, fontWeight: FontWeight.bold))
+                    : const CircularProgressIndicator()),
+          );
+        });
+  }
+}*/
+
+
+
+/***********************************************************************************/
+/*
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+import 'package:record/record.dart';
+
+void main() {
+  runApp(const MaterialApp(home: MicPage()));
+}
+
+class MicPage extends StatefulWidget {
+  const MicPage({super.key});
+
+  @override
+  State<MicPage> createState() => _MicPageState();
+}
+
+class _MicPageState extends State<MicPage> {
+  Record myRecording = Record();
+  Timer? timer;
+  List<double> volumeList = [];
+
+   static double  volume = 0.0;
+   double minVolume = -45.0;
+
+  startTimer() async {
+    timer ??= Timer.periodic(
+        const Duration(milliseconds: 50), (timer) => updateVolume());
+  }
+
+  updateVolume() async {
+    Amplitude ampl = await myRecording.getAmplitude();
+    if (ampl.current > minVolume) {
+      setState(() {
+        volume = (ampl.current - minVolume) / minVolume;
+        volumeList.add(volume);
+      });
+    }
+  }
+
+  int volume0to(int maxVolumeToDisplay) {
+    return (volume * maxVolumeToDisplay).round().abs();
+  }
+
+  double calculateAverage(List<double> volumes) {
+    double sum = 0.0;
+    volumes.forEach((volume) {
+      sum += volume;
+    });
+    return sum / volumes.length;
+  }
+
+  void compareWith70() {
+    double averageVolume = calculateAverage(volumeList);
+    if (averageVolume >= 70.0) {
+      print(
+          "The average volume is ${averageVolume.toStringAsFixed(2)} - Too loud!");
+    } else {
+      print(
+          "The average volume is ${averageVolume.toStringAsFixed(2)} - Safe volume.");
+    }
+    volumeList.clear();
+  }
+
+  Future<bool> startRecording() async {
+    if (await myRecording.hasPermission()) {
+      if (!await myRecording.isRecording()) {
+        await myRecording.start();
+      }
+      startTimer();
+      //calculateAverage();
+      Timer.periodic(const Duration(seconds: 10), (timer) {
+        compareWith70();
+      });
+      return true;
+    } else {
+      return false;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final Future<bool> recordFutureBuilder =
+        Future<bool>.delayed(const Duration(seconds: 3), (() async {
+      return startRecording();
+    }));
+
+    return FutureBuilder(
+        future: recordFutureBuilder,
+        builder: (context, AsyncSnapshot<bool> snapshot) {
+          return Scaffold(
+            body: Center(
+                child: snapshot.hasData
+                    ? Text("VOLUME NOISE\n${volume0to(100)}",
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                            fontSize: 42, fontWeight: FontWeight.bold))
+                    : const CircularProgressIndicator()),
+          );
+        });
+  }
+}
+*/
+
+
+import 'package:flutter/material.dart';
+import 'dart:async';
+
+import 'package:flutter/services.dart';
+import 'package:barometer_plugin_n/barometer_plugin.dart';
+
+void main() {
+  runApp(MyApp());
+}
+
+class MyApp extends StatefulWidget {
+  @override
+  _MyAppState createState() => _MyAppState();
+}
+
+enum MeasurementType {
+  HomeLevel,
+  TopLevel,
+  FCILevel,
+  HomeHeight,
+}
+
+class _MyAppState extends State<MyApp> {
+  double _homeLevelPressure = 0.0;
+  double _topLevelPressure = 0.0;
+  double _fciLevelPressure = 0.0;
+  double _homeLevelHeight = 0.0;
+  double _homeHeight = 0.0;
+  double _fciLevelHeight = 0.0;
+  String _comparisonResult = '';
+
+  @override
+  void initState() {
+    super.initState();
+    initPlatformState();
+  }
+
+  Future<void> initPlatformState() async {
+    try {
+      await BarometerPlugin.initialize();
+    } on Exception {}
+  }
+
+  Future<void> startMeasurement(MeasurementType type) async {
+    double pressure = 0.0;
+    double height = 0.0;
+
+    setState(() async {
+      if (type == MeasurementType.HomeLevel) {
+        pressure = await BarometerPlugin.reading;
+        _homeLevelPressure = 1006.314208984375; // pressure;
+        _homeLevelHeight = calculateHeight(pressure);
+      } else if (type == MeasurementType.TopLevel) {
+        pressure = await BarometerPlugin.reading;
+        _topLevelPressure = 1006.0979003933775; //pressure;
+      } else if (type == MeasurementType.FCILevel) {
+        pressure = await BarometerPlugin.reading;
+        _fciLevelPressure = pressure;
+        _fciLevelHeight = calculateHeight(pressure);
+        compareHeights();
+      } else if (type == MeasurementType.HomeHeight) {
+        pressure = await BarometerPlugin.reading;
+        _homeHeight =
+            calculateHomeHeight(_homeLevelPressure, _topLevelPressure);
+      }
+    });
+  }
+
+  double calculateHeight(double pressure) {
+    final double seaLevelPressure = 1013.25;
+    final double gravity = 9.80665;
+    final double temperature = 298.15;
+
+    double height =
+        (-(pressure - seaLevelPressure) * temperature) / (gravity * 287.053);
+    return height;
+  }
+
+  double calculateHomeHeight(double bottompressure, toppressure) {
+    final double seaLevelPressure = 1013.25;
+    final double gravity = 9.80665;
+    final double temperature = 298.15;
+
+    double height =
+        (-(toppressure - bottompressure) * temperature) / (gravity * 287.053);
+    return height;
+  }
+
+  void compareHeights() {
+    if (_homeLevelHeight > _fciLevelHeight) {
+      _comparisonResult = 'Home level is higher than FCI level';
+    } else if (_homeLevelHeight < _fciLevelHeight) {
+      _comparisonResult = 'FCI level is higher than home level';
+    } else {
+      _comparisonResult = 'Both levels are at the same height';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      home: Scaffold(
+        appBar: AppBar(
+          title: const Text('Barometer Plugin Example'),
+        ),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.max,
+            children: [
+              ElevatedButton(
+                child: Text("Measure Home Level Pressure"),
+                onPressed: () {
+                  startMeasurement(MeasurementType.HomeLevel);
+                },
+              ),
+              ElevatedButton(
+                child: Text("Measure Top Level Pressure"),
+                onPressed: () {
+                  startMeasurement(MeasurementType.TopLevel);
+                },
+              ),
+              ElevatedButton(
+                child: Text("Measure Home height"),
+                onPressed: () {
+                  startMeasurement(MeasurementType.HomeHeight);
+                },
+              ),
+              ElevatedButton(
+                child: Text("Measure FCI Level Pressure"),
+                onPressed: () {
+                  startMeasurement(MeasurementType.FCILevel);
+                },
+              ),
+              SizedBox(height: 20),
+              Text('Home Level Pressure: $_homeLevelPressure'),
+              Text('Top Level Pressure: $_topLevelPressure'),
+              Text('FCI Level Pressure: $_fciLevelPressure'),
+              Text('Home Level Height: $_homeLevelHeight meters'),
+              Text('FCI Level Height: $_fciLevelHeight meters'),
+              Text('Home Height: $_homeHeight meters'),
+              SizedBox(height: 10),
+              Text('Comparison Result: $_comparisonResult'),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
